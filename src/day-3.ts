@@ -164,7 +164,7 @@ lineOne.forEach((lineOneSegment, lineOneIndex) => {
       );
 
       // Set the new index, + 1 to start with the next segment
-      lastIndexOfIntersectionLineTwo = lineTwoIndex;
+      lastIndexOfIntersectionLineTwo = lineTwoIndex + 1;
 
       // Adjust Line One since the end point of a wire segment
       // is not the same as the point of intersection
