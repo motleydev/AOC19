@@ -1,33 +1,41 @@
 "use strict";
-var __spreadArrays = (this && this.__spreadArrays) || function () {
-    for (var s = 0, i = 0, il = arguments.length; i < il; i++) s += arguments[i].length;
-    for (var r = Array(s), k = 0, i = 0; i < il; i++)
-        for (var a = arguments[i], j = 0, jl = a.length; j < jl; j++, k++)
-            r[k] = a[j];
-    return r;
-};
 Object.defineProperty(exports, "__esModule", { value: true });
-var fs = require("fs");
-var chalk = require("chalk");
-var turf_1 = require("@turf/turf");
-var data = fs
+const fs = require("fs");
+const chalk = require("chalk");
+const turf_1 = require("@turf/turf");
+const data = fs
     // .readFileSync('./data/day2.txt', 'utf-8')
     .readFileSync('./data/day3.txt', 'utf-8')
     .split(/\n/);
-var testSetOne = [
+let finalSteps = [];
+const testSetOne = [
+    'R75,D30,R83,U83,L12,D49,R71,U7,L72',
+    'U62,R66,U55,R34,D71,R55,D58,R83',
+];
+const testSetTwo = [
     'R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51',
     'U98,R91,D20,R16,D67,R40,U7,R15,U6,R7',
 ];
-var R = function (start, next) { return start + next; };
-var L = function (start, next) { return start - next; };
-var U = function (start, next) { return start - next; };
-var D = function (start, next) { return start + next; };
-var createLines = function (collector, current) {
+// Sum Step Reducer
+let sumSteps = (acc, curr) => acc + (curr.steps || 0);
+// Functions to create x2/y2 respectively on a grid
+const R = (start, next) => start + next;
+const L = (start, next) => start - next;
+const U = (start, next) => start - next;
+const D = (start, next) => start + next;
+// Store for original step lengths
+let stepTracker = new Map();
+// Reducer for parsing the wire segments
+const createLines = (collector, current) => {
     // Previous point
-    var _a = collector[collector.length - 1], x1 = _a.x1, x2 = _a.x2, y1 = _a.y1, y2 = _a.y2;
-    var operator = current[0];
-    var value = Number(current.slice(1));
-    var coord = 0;
+    let { x1, x2, y1, y2 } = collector[collector.length - 1];
+    // Direction of the ray (UDLR)
+    let operator = current[0];
+    // Magnitude of the ray
+    let value = Number(current.slice(1));
+    // The new coordinate, set below
+    let coord = 0;
+    // Set coord to a positive or negative value on the a 0,0 grid
     switch (operator) {
         case 'R':
             coord = R(x2, value);
@@ -44,101 +52,102 @@ var createLines = function (collector, current) {
         default:
             0;
     }
-    var nextPoint = {
+    // Determine the values of the next wire / ray segment
+    let nextPoint = {
         x1: x2,
         y1: y2,
         x2: operator === 'R' || operator === 'L' ? coord : x2,
         y2: operator === 'U' || operator === 'D' ? coord : y2,
-        steps: Math.abs(value),
     };
-    return __spreadArrays(collector, [nextPoint]);
+    let positionCoordAsString = [nextPoint.x2, nextPoint.y2].toString();
+    // If no steps, set them
+    if (!stepTracker.has(positionCoordAsString)) {
+        stepTracker.set(positionCoordAsString, Math.abs(value));
+    }
+    // Get the next steps
+    nextPoint.steps = stepTracker.get(positionCoordAsString);
+    return [...collector, nextPoint];
 };
-var lines = testSetOne.map(function (str) {
-    return str
-        .split(/\,/)
-        .map(function (el) { return el.trim(); })
-        .reduce(createLines, [{ x1: 0, y1: 0, x2: 0, y2: 0, steps: 0 }]);
-});
-var lineOne = lines[0], lineTwo = lines[1];
-var intersections = [];
-var lastIndexOfIntersectionLineOne = 0;
-var lastIndexOfIntersectionLineTwo = 0;
-lineOne.forEach(function (lineOneSegment, lineOneIndex) {
+// Apply formatting to the strings
+// Replace testSetOne with data
+const lines = data.map(str => str
+    .split(/\,/)
+    .map(el => el.trim())
+    .reduce(createLines, [{ x1: 0, y1: 0, x2: 0, y2: 0, steps: 0 }]));
+// Split into two wires
+let [lineOne, lineTwo] = lines;
+// A collector for all the intersections, for part 1
+let intersections = [];
+// Map over each segment of the first wire
+lineOne.forEach((lineOneSegment, lineOneIndex) => {
     //Skip comparing the 0 route
     if (lineOneIndex <= 1)
         return;
-    var x1 = lineOneSegment.x1, x2 = lineOneSegment.x2, y1 = lineOneSegment.y1, y2 = lineOneSegment.y2;
-    var lineOneCompareString = turf_1.lineString([
+    // Construct a lineString from wire one for comparison
+    let { x1, x2, y1, y2 } = lineOneSegment;
+    let lineOneCompareString = turf_1.lineString([
         [x1, y1],
         [x2, y2],
     ]);
-    lineTwo.forEach(function (lineTwoSegment, lineTwoIndex) {
+    // For every wire segment of wire one,
+    // check to see if there's a collision with a wire segment of line two
+    lineTwo.forEach((lineTwoSegment, lineTwoIndex) => {
         var _a;
         //Skip comparing the 0 route
         if (lineTwoIndex <= 1)
             return;
-        var x1 = lineTwoSegment.x1, x2 = lineTwoSegment.x2, y1 = lineTwoSegment.y1, y2 = lineTwoSegment.y2;
-        var lineTwoCompareString = turf_1.lineString([
+        // Construct a lineString from wire two for comparison
+        let { x1, x2, y1, y2 } = lineTwoSegment;
+        let lineTwoCompareString = turf_1.lineString([
             [x1, y1],
             [x2, y2],
         ]);
         // Check for intersections
-        var intersects = turf_1.lineIntersect(lineOneCompareString, lineTwoCompareString);
+        let intersects = turf_1.lineIntersect(lineOneCompareString, lineTwoCompareString);
+        // If an intersection occurred
         if (intersects.features.length) {
             //  x,y of the point of intersection
-            var coords = ((_a = intersects.features[0].geometry) === null || _a === void 0 ? void 0 : _a.coordinates) || [
+            let coords = ((_a = intersects.features[0].geometry) === null || _a === void 0 ? void 0 : _a.coordinates) || [
                 1000,
                 1000,
             ];
-            var lineOneSlice = lineOne.slice(lastIndexOfIntersectionLineOne, lineOneIndex + 1);
-            var lineOneTotalSteps = lineOneSlice.reduce(function (acc, curr) { return acc + curr.steps; }, 0);
-            lastIndexOfIntersectionLineOne = lineOneIndex;
-            var lineTwoSlice = lineTwo.slice(lastIndexOfIntersectionLineTwo, lineTwoIndex + 1);
-            var lineTwoTotalSteps = lineTwoSlice.reduce(function (acc, curr) { return acc + curr.steps; }, 0);
-            lastIndexOfIntersectionLineTwo = lineTwoIndex;
-            // Adjust Line One
+            // I added defaults because it helped me avoid
+            // forced null checking that typescript mandiates with that
+            // level of reading nested properties.
+            // the '?.' access is a new syntax for checking properties.
+            // Slice all wire segments on line one up to the current wire point
+            // note +1 for all segments inclusive.
+            let lineOneSlice = lineOne.slice(0, lineOneIndex + 1);
+            // Sum the steps from those segments
+            let lineOneTotalSteps = lineOneSlice.reduce(sumSteps, 0);
+            // Slice all wire segments on line two up to the current wire point
+            // note +1 for all segments inclusive.
+            let lineTwoSlice = lineTwo.slice(0, lineTwoIndex + 1);
+            // Sum the steps from those segments
+            let lineTwoTotalSteps = lineTwoSlice.reduce(sumSteps, 0);
+            // Adjust Line One since the end point of a wire segment
+            // is not the same as the point of intersection
             // If no change in X, adjust Y
             if (lineOneSegment.x1 === lineOneSegment.x2)
-                lineOneTotalSteps -= lineOneSegment.y2 - coords[1];
+                lineOneTotalSteps -= Math.abs(lineOneSegment.y2 - coords[1]);
             // If no change in Y, adjust X
             if (lineOneSegment.y1 === lineOneSegment.y2)
-                lineOneTotalSteps -= lineOneSegment.x2 - coords[0];
-            // Adjust Line Two
+                lineOneTotalSteps -= Math.abs(lineOneSegment.x2 - coords[0]);
+            // Adjust Line Two since the end point of a wire segment
+            // is not the same as the point of intersection
             // If no change in X, adjust Y
             if (lineTwoSegment.x1 === lineTwoSegment.x2)
-                lineTwoTotalSteps -= lineTwoSegment.y2 - coords[1];
+                lineTwoTotalSteps -= Math.abs(lineTwoSegment.y2 - coords[1]);
             // If no change in Y, adjust X
             if (lineTwoSegment.y1 === lineTwoSegment.y2)
-                lineTwoTotalSteps -= lineTwoSegment.x2 - coords[0];
-            // console.log(chalk.blue('Intersection: '), coords);
-            // console.log(chalk.blue('Last Coord: '), x2, y2);
-            // console.log(
-            //   chalk.blue('Line One Segment: '),
-            //   lineOneSlice.map(segment => segment.steps),
-            //   chalk.blue(' = '),
-            //   lineOneSlice
-            //     .map(segment => segment.steps)
-            //     .reduce((acc, curr) => acc + curr, 0),
-            // );
-            // console.log(
-            //   chalk.blue('Line Two Segment: '),
-            //   lineTwoSlice.map(segment => segment.steps),
-            //   chalk.blue(' = '),
-            //   lineTwoSlice
-            //     .map(segment => segment.steps)
-            //     .reduce((acc, curr) => acc + curr, 0),
-            // );
-            // console.log(
-            //   chalk.blue('Line One Total Steps: '),
-            //   lineOneTotalSteps,
-            // );
-            // console.log(
-            //   chalk.blue('Line Two Total Steps: '),
-            //   lineTwoTotalSteps,
-            // );
+                lineTwoTotalSteps -= Math.abs(lineTwoSegment.x2 - coords[0]);
+            finalSteps.push(lineOneTotalSteps + lineTwoTotalSteps);
             console.log(chalk.red('Total Steps: '), lineOneTotalSteps + lineTwoTotalSteps);
+            // Collect all the intersections for part 1
             intersections.push(coords);
         }
     });
 });
+console.log('Smallest: ', finalSteps.sort()[0]);
+// Find the closest intersection (from part 1)
 // console.log(intersections.map(el => Math.abs(el[0]) + Math.abs(el[1])).sort())
